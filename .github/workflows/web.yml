@@ -1,0 +1,49 @@
+name: Deploy Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Compilar version web
+        run: |
+          flutter create --platforms=web --org pe.pollogordo --project-name pollo_gordo app
+          rm -rf app/lib app/test
+          cp -r lib app/lib
+          cp pubspec.yaml app/pubspec.yaml
+          sed -i 's|<title>[^<]*</title>|<title>El Pollo Gordo</title>|' app/web/index.html
+          sed -i 's|"name": "pollo_gordo"|"name": "El Pollo Gordo"|; s|"short_name": "pollo_gordo"|"short_name": "El Pollo Gordo"|' app/web/manifest.json
+          cd app
+          flutter pub get
+          flutter build web --release --base-href "/pollo-gordo/"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build/web
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
